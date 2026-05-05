@@ -1,1 +1,6 @@
 .vercel
+data/
+*.csv
+*.zip
+*.pkl
+__pycache__/
