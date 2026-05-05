@@ -1,5 +1,5 @@
 """
-Phase 2b: Monte Carlo simulation of E[MAD] under the Benford null
+Phase 2: Monte Carlo simulation of E[MAD] under the Benford null
 ==================================================================
 Empirically estimates E[MAD(N)] = expected MAD when N samples are drawn
 from a true Benford distribution. We need this for the small-sample

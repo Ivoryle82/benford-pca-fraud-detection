@@ -1,6 +1,6 @@
-.vercel
-data/
-*.csv
+data/test_transaction.csv
+data/train_transaction.csv
 *.zip
 *.pkl
 __pycache__/
+venv/

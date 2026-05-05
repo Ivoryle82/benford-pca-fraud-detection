@@ -1,5 +1,5 @@
 """
-Phase 2c: Per-user Benford feature extraction
+Phase 2: Per-user Benford feature extraction
 ==============================================
 For each user in the IEEE-CIS data (or our synthetic stand-in), compute:
 

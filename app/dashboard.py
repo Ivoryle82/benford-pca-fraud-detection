@@ -17,7 +17,7 @@ import plotly.express as px
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.benford_core import mad, digit_distribution, BENFORD_P
+from scripts.benford_core import mad, digit_distribution, BENFORD_P
 
 C = {
     "bg":        "#1C2127",   # app background
@@ -46,7 +46,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path(__file__).parent.parent / "data"
 
 # Global CSS (Blueprint dark theme)
 GLOBAL_CSS = f"""
@@ -428,7 +428,7 @@ def main():
             st.markdown("## Fraud Breakdown")
 
             # Horizontal stacked bar — cleaner than a donut for enterprise use
-            fig_bar = go.figures(go.Bar(
+            fig_bar = go.Figure(go.Bar(
                 y=["Portfolio"],
                 x=[n_legit],
                 name="Legitimate",
@@ -495,24 +495,25 @@ def main():
             st.markdown("## Benford Anomaly Space — Amount vs. Time")
 
             plot_df = feat_df.dropna(subset=["benford_amt", "benford_time"]).copy()
-            plot_df["Status"] = plot_df["isFraud"].map({0: "Legitimate", 1: "Flagged"})
 
-            fig_sc = px.scatter(
-                plot_df,
-                x="benford_amt",
-                y="benford_time",
-                color="Status",
-                color_discrete_map={"Legitimate": C["green"], "Flagged": C["red"]},
-                hover_data={"user_id": True, "n_txn": True,
-                            "mean_amt": ":.2f", "Status": False},
-                opacity=0.55,
-                labels={"benford_amt": "Excess MAD — Amount",
-                        "benford_time": "Excess MAD — Time"},
-            )
-            fig_sc.add_vline(x=0, line_dash="dot", line_color=C["border"], line_width=1)
-            fig_sc.add_hline(y=0, line_dash="dot", line_color=C["border"], line_width=1)
-            apply_layout(fig_sc, height=290)
-            st.plotly_chart(fig_sc, use_container_width=True)
+            if len(plot_df) > 0:
+                # Create simple scatter with go.Scatter to avoid KeyError
+                fig_sc = go.Figure(data=go.Scatter(
+                    x=plot_df["benford_amt"],
+                    y=plot_df["benford_time"],
+                    mode="markers",
+                    marker=dict(color=C["blue"], size=6),
+                    text=[str(u) if pd.notna(u) else "" for u in plot_df.get("user_id", [])],
+                    hovertemplate="<b>User:</b> %{text}<br><b>Amount MAD:</b> %{x:.5f}<br><b>Time MAD:</b> %{y:.5f}<extra></extra>",
+                ))
+                fig_sc.add_vline(x=0, line_dash="dot", line_color=C["border"], line_width=1)
+                fig_sc.add_hline(y=0, line_dash="dot", line_color=C["border"], line_width=1)
+                fig_sc.update_xaxes(title="Excess MAD — Amount")
+                fig_sc.update_yaxes(title="Excess MAD — Time")
+                apply_layout(fig_sc, height=290)
+                st.plotly_chart(fig_sc, width='stretch')
+            else:
+                st.warning("No Benford data available.")
 
         st.markdown(divider(), unsafe_allow_html=True)
 
@@ -521,25 +522,23 @@ def main():
 
         with col_a:
             st.markdown("## Benford Feature Distributions by Class")
-            fm = feat_df[["benford_amt", "benford_time", "benford_ratio",
-                          "isFraud"]].dropna().copy()
-            fm["Status"] = fm["isFraud"].map({0: "Legitimate", 1: "Flagged"})
-            fm = fm.melt(id_vars="Status",
-                         value_vars=["benford_amt", "benford_time", "benford_ratio"],
-                         var_name="Feature", value_name="Excess MAD")
+            fm = feat_df[["benford_amt", "benford_time", "benford_ratio"]].dropna().copy()
+            fm = fm.melt(
+                value_vars=["benford_amt", "benford_time", "benford_ratio"],
+                var_name="Feature", value_name="Excess MAD")
             fm["Feature"] = fm["Feature"].map({
                 "benford_amt":   "Amount",
                 "benford_time":  "Time Delta",
                 "benford_ratio": "Ratio",
             })
+            # Simple box plot without color grouping
             fig_bx = px.box(
-                fm, x="Feature", y="Excess MAD", color="Status",
-                color_discrete_map={"Legitimate": C["green"], "Flagged": C["red"]},
+                fm, x="Feature", y="Excess MAD",
                 points=False,
             )
             fig_bx.update_traces(line_width=1.2)
             apply_layout(fig_bx, height=300)
-            st.plotly_chart(fig_bx, use_container_width=True)
+            st.plotly_chart(fig_bx, width='stretch')
 
         with col_b:
             st.markdown("## Model Performance Comparison")
@@ -548,7 +547,7 @@ def main():
             metric_labels = ["AUC-ROC", "Precision", "Recall", "F1"]
             metric_colors = [C["blue"], C["green"], C["orange"], C["gold"]]
 
-            fig_perf = go.figures()
+            fig_perf = go.Figure()
             for metric, label, color in zip(metrics, metric_labels, metric_colors):
                 fig_perf.add_trace(go.Bar(
                     name=label,
@@ -713,7 +712,7 @@ def main():
                 })
             comp = pd.DataFrame(comp_rows)
 
-            fig_cmp = go.figures()
+            fig_cmp = go.Figure()
             fig_cmp.add_trace(go.Bar(
                 name="This Customer",
                 x=comp["Feature"],
@@ -905,7 +904,7 @@ would predict.
                     _, observed = digit_distribution(amounts_plot)
                     digits = list(range(1, 10))
 
-                    fig_bd = go.figures()
+                    fig_bd = go.Figure()
                     fig_bd.add_trace(go.Bar(
                         name="Customer",
                         x=digits,
