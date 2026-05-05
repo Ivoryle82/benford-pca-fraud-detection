@@ -40,7 +40,7 @@ C = {
 
 # Page config
 st.set_page_config(
-    page_title="Fraud Analytics — Palantir",
+    page_title="Fraud Analytics using Benford",
     page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded",
