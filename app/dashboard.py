@@ -18,6 +18,10 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.benford_core import mad, digit_distribution, BENFORD_P
+import os
+
+# Cohere explanation helper (import after we add parent dir to sys.path)
+from app.cohere_client import generate_explanation
 
 C = {
     "bg":        "#1C2127",   # app background
@@ -636,6 +640,55 @@ def main():
                 f"{tag(actual_text, actual_cls)}</div>",
                 unsafe_allow_html=True,
             )
+
+            # Generate a plain-English explanation via Cohere for flagged/high-risk
+            if row.get("isFraud", 0) == 1 or tier_label == "HIGH RISK":
+                with st.spinner("Generating explanation..."):
+                    customer_data = {
+                        "n_txn": int(row.get("n_txn", 0)),
+                        "benford_amt": float(row["benford_amt"]) if not np.isnan(row["benford_amt"]) else 0.0,
+                        "benford_amt_percentile": b_amt_pct,
+                        "benford_time": float(row["benford_time"]) if not np.isnan(row["benford_time"]) else None,
+                        "benford_ratio": float(row["benford_ratio"]) if not np.isnan(row["benford_ratio"]) else 0.0,
+                        "benford_ratio_percentile": risk_percentile(row.get("benford_ratio", 0), feat_df["benford_ratio"]),
+                        "mean_amt": float(row.get("mean_amt", 0.0)),
+                        "median_amt": float(row.get("median_amt", 0.0)),
+                        "std_amt": float(row.get("std_amt", 0.0)),
+                        "max_amt": float(row.get("max_amt", 0.0)),
+                        "top_repeated_amounts": [],
+                    }
+                    # Attempt to compute top repeated amounts by scanning transaction file
+                    txn_file = DATA_DIR / "train_transaction.csv"
+                    if txn_file.exists():
+                        try:
+                            top_counts = {}
+                            cols = ["TransactionAmt", "card1", "addr1", "P_emaildomain"]
+                            for chunk in pd.read_csv(txn_file, usecols=cols, chunksize=100000):
+                                chunk["user_id"] = (
+                                    chunk["card1"].fillna(-1).astype(int).astype(str)
+                                    + "_"
+                                    + chunk["addr1"].fillna(-1).astype(int).astype(str)
+                                    + "_"
+                                    + chunk["P_emaildomain"].fillna("none").astype(str)
+                                )
+                                sel = chunk[chunk["user_id"] == selected_id]
+                                if not sel.empty:
+                                    for v in sel["TransactionAmt"].dropna().values:
+                                        top_counts[v] = top_counts.get(v, 0) + 1
+                            if top_counts:
+                                # top 5 repeated amounts
+                                top5 = sorted(top_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+                                customer_data["top_repeated_amounts"] = [(float(a), int(c)) for a, c in top5]
+                        except Exception:
+                            # If scanning fails, leave as empty list
+                            customer_data["top_repeated_amounts"] = []
+                    population_context = {
+                        "n_users_in_population": int(len(feat_df)),
+                        "typical_legit_benford_amt": "0.020-0.035",
+                        "population_median_benford_amt": float(feat_df["benford_amt"].median()),
+                    }
+                    explanation = generate_explanation(customer_data, population_context)
+                st.markdown(f"**Explanation:** {explanation}")
 
             # Dimension breakdown table
             dim_rows = []

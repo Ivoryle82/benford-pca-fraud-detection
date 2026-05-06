@@ -6,3 +6,4 @@ scikit-learn>=1.0.0
 scipy>=1.7.0
 matplotlib>=3.5.0
 uvicorn>=0.22.0
+cohere>=5.11.0
